@@ -133,59 +133,38 @@ KeyCode scanKey(int row){
 
 int main(void)
 {
-  /* USER CODE BEGIN 1 */
-
-  /* USER CODE END 1 */
-  
-
-  /* MCU Configuration--------------------------------------------------------*/
-
-  /* Reset of all peripherals, Initializes the Flash interface and the Systick. */
   HAL_Init();
-
-  /* USER CODE BEGIN Init */
-
-  /* USER CODE END Init */
-
-  /* Configure the system clock */
   SystemClock_Config();
-
-  /* USER CODE BEGIN SysInit */
-
-  /* USER CODE END SysInit */
-
-  /* Initialize all configured peripherals */
   MX_GPIO_Init();
-  /* USER CODE BEGIN 2 */
 
-  /* USER CODE END 2 */
-
-  /* Infinite loop */
-  /* USER CODE BEGIN WHILE */
-	
-	std::deque<KeyCode> keyQueue; 
-	
+	/**
+	* Pin Definition
+	* 
+	* GPIOB -> Seven Segement Display LED
+	*
+	*
+	*
+	*/
+	KeyCode keycode = KeyCode::KEY_1;
   while (true)
   {
-		HAL_GPIO_WritePin(GPIOC, 0xFFFF, GPIO_PIN_RESET);
-		HAL_GPIO_WritePin(GPIOB, Number[0], GPIO_PIN_SET);
+		// Reset All State
+		HAL_GPIO_WritePin(GPIOC, 0xFF00, GPIO_PIN_RESET);
 		HAL_Delay(1);
 		
 		for(int i = 0; i < 4; i++){
-			HAL_GPIO_WritePin(GPIOC, 0x100 << i, GPIO_PIN_RESET);
-			HAL_Delay(1);
-	
-		
-			auto keycode =  scanKey(i);
+			// Reset Scan Lines -> GPIOC 8 ~ 11  
+			HAL_GPIO_WritePin(GPIOC, 0x0F00, GPIO_PIN_SET);
+
+			// Set Current Scan Line (From PC8 to PC11)
+			// 0000 1111 0000 0000
+			HAL_GPIO_WritePin(GPIOC, 0x0100 << i, GPIO_PIN_RESET);
+			keycode = scanKey(i);
 			if(keycode == KeyCode::KEY_UNDEFINED)
 				continue;
-			keyQueue.push_back(keycode);
-			if(keyQueue.size() >= 5){
-				keyQueue.pop_back();
-			}
-			HAL_GPIO_WritePin(GPIOB, Number[(int) keyQueue[i]], GPIO_PIN_SET);
-			
-			HAL_GPIO_WritePin(GPIOC, 0xF00 << i, GPIO_PIN_SET);
+			HAL_GPIO_WritePin(GPIOB, 0xFF00, GPIO_PIN_RESET);
+			HAL_GPIO_WritePin(GPIOB, Number[(int) keycode], GPIO_PIN_SET);
+			HAL_Delay(1);
 		}
   }
   /* USER CODE END 3 */
