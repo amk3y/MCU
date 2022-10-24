@@ -24,6 +24,7 @@
 #include <vector>
 #include <deque>
 #include <algorithm>
+#include <cmath>
 
 // User-Defined 
 #include "main.h"
@@ -133,43 +134,21 @@ KeyCode scanKey(int row){
 
 
 
-
 int main(void)
 {
-  /* USER CODE BEGIN 1 */
-
-  /* USER CODE END 1 */
-  
-
-  /* MCU Configuration--------------------------------------------------------*/
-
-  /* Reset of all peripherals, Initializes the Flash interface and the Systick. */
   HAL_Init();
-
-  /* USER CODE BEGIN Init */
-
-  /* USER CODE END Init */
-
-  /* Configure the system clock */
   SystemClock_Config();
-
-  /* USER CODE BEGIN SysInit */
-
-  /* USER CODE END SysInit */
-
-  /* Initialize all configured peripherals */
   MX_GPIO_Init();
-  /* USER CODE BEGIN 2 */
 
-  /* USER CODE END 2 */
-
-  /* Infinite loop */
-  /* USER CODE BEGIN WHILE */
-	
+	//
+	// 
+	//
 	std::deque<KeyCode> keyQueue; 
 	
 	int values[4] = {0};
 	int currentIndex = 0;
+	
+	int displayValue = 0;
 	
   while (true)
   {
@@ -192,25 +171,36 @@ int main(void)
 					+ (int) (keyQueue[2]) * 100 
 					+ (int) (keyQueue[1]) * 10
 					+ (int) (keyQueue[0]) * 1;
-					
 			// Compute
-			else if (keycode == KeyCode::HASH){
+			else if (keycode == KeyCode::KEY_HASH){
 				int sum = 0;
 				for(int i = 0; i < 4; i++){
 					sum += i;
 				}
 				//Result
-				sum / 4;
+				displayValue = sum / 4;
 				//Reset
 				currentIndex = 0;
 			}
-				
-				
+					
 			keyQueue.push_back(keycode);
+			displayValue = 0;
+			for(int v = 0; v < keyQueue.size(); v++){
+				displayValue += (int) keyQueue[v] * (int) pow(10, v);
+			}
 			if(keyQueue.size() >= 5){
 				keyQueue.pop_back();
 			}
-			HAL_GPIO_WritePin(GPIOB, Number[(int) keyQueue[i]], GPIO_PIN_SET);
+			
+			//Do display output
+			
+			int digit =  0;
+			if(i == 0){
+				digit = displayValue % 10;
+			}else {
+				digit = displayValue / (int) pow(10, i);
+			}
+			HAL_GPIO_WritePin(GPIOB, Number[(int) keyQueue[digit]], GPIO_PIN_SET);
 			
 			HAL_GPIO_WritePin(GPIOC, 0xF00 << i, GPIO_PIN_SET);
 		}
