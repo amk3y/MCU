@@ -115,7 +115,7 @@ int translateKeyCodeToLED(KeyCode code){
 }
 
 KeyCode scanKey(int row){
-	switch (row){
+	switch (row) {
 		case 0: {
 			if(HAL_GPIO_ReadPin(GPIOC, GPIO_PIN_12) == 0) return KeyCode::KEY_1;
 			else if(HAL_GPIO_ReadPin(GPIOC, GPIO_PIN_13) == 0) return KeyCode::KEY_2;
@@ -231,13 +231,9 @@ int main(void)
 	KeyCode kk = KeyCode::KEY_0;
 	
 	FixedQueue<int> displayQueue(4);
-//	for(int i = 0; i < 4; i++){
-	displayQueue.offer(translateKeyCodeToLED(KeyCode::KEY_0));
-	displayQueue.offer(translateKeyCodeToLED(KeyCode::KEY_1));
-	displayQueue.offer(translateKeyCodeToLED(KeyCode::KEY_2));
-	displayQueue.offer(translateKeyCodeToLED(KeyCode::KEY_3));
-	
-//}
+	for(int i = 0; i < 4; i++){
+		displayQueue.offer(0);
+	}
 	
   while (true)
   {
@@ -263,26 +259,25 @@ int main(void)
 			if(keycode != lastKeyOfRow[i]){
 				keyLastUpdate = HAL_GetTick();
 			}
-			//50 = debounce delay
+			//40 = debounce delay
 			if((HAL_GetTick() - keyLastUpdate) > 40){
 				if(keycode != currentKeyOfRow[i]){
 					currentKeyOfRow[i] = keycode;
 					if(keycode != KeyCode::KEY_UNDEFINED){
-						kk = (KeyCode) ((int) kk + 1);
-						displayQueue.offer(translateKeyCodeToLED(kk));
+						// Button Action
+						displayQueue.offer(translateKeyCodeToLED(keycode));
 					}
 				}
 			}
-		
 			lastKeyOfRow[i] = keycode;
-
-					//displayQueue.offer(translateKeyCodeToLED(keycode));
+			//Debounce End
+			
 			//
 			// Do Display
 			//
 
 			HAL_GPIO_WritePin(GPIOB, 0xFF00, GPIO_PIN_RESET);
-			HAL_GPIO_WritePin(GPIOB, displayQueue[3 - i], GPIO_PIN_SET);
+			HAL_GPIO_WritePin(GPIOB, displayQueue[i], GPIO_PIN_SET);
 			HAL_Delay(1);
 			HAL_GPIO_WritePin(GPIOB, 0xFF00, GPIO_PIN_RESET);
 		}
