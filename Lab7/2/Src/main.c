@@ -91,6 +91,29 @@ enum class KeyCode {
 	KEY_UNDEFINED
 };
 
+int translateKeyCodeToLED(KeyCode code){
+	if((int) code < 10)
+		return Number[(int) code];
+	else if(code == KeyCode::KEY_A)
+		return 0xEE00;
+	else if(code == KeyCode::KEY_B)
+		return 0x3E00;
+	else if(code == KeyCode::KEY_C)
+			//1001 1100
+		return 0x9C00;
+	else if(code == KeyCode::KEY_D)
+			// 0111 1010
+		return 0x7A00;
+	else if(code == KeyCode::KEY_ASTERISK)
+		//1001 1110
+		return 0x9E00;
+	else if(code == KeyCode::KEY_HASH)
+		//1000 1110
+		return 0x8E00;
+	else 
+		return 0x9000;
+}
+
 KeyCode scanKey(int row){
 	switch (row){
 		case 0: {
@@ -127,9 +150,69 @@ KeyCode scanKey(int row){
 	}
 }
 
+/**
+*
+* No STL ?
+* Make one yourself :)
+*
+*/
+template<typename T>
+class FixedQueue {
+
+public:
+    FixedQueue(int capacity)
+    : _maxCapacity(capacity)
+    , _data(new T[capacity])
+    , _size(0) {
+
+    };
+
+    ~FixedQueue(){
+        free(_data);
+    };
+
+    T *poll() {
+        if (_size == 0) return nullptr;
+        return &_data[--_size];
+
+    }
+		
+		void clear(T defaultValue){
+			for(int i = 0; i < _maxCapacity; i++){
+				_data[i] = defaultValue;
+			}
+		}
+
+    void offer(T data) {
+        _size = _size < _maxCapacity ? _size + 1 : _maxCapacity;
+       // printf("%d %d %d %d %d ", _data[0], _data[1], _data[2], _data[3], _data[4]);
+        for (int i = _size - 1; i > 0; i--) {
+            _data[i] = _data[i - 1];
+        }
+        _data[0] = data;
+    }
+
+    T operator[](int index) {
+        return _data[index];
+    }
+
+    int size(){
+        return _size;
+    }
+
+    int capacity(){
+        return _maxCapacity;
+    }
+private:
+    T* _data;
+    int _size;
+    const int _maxCapacity;
+};
+
 //
 // | [0, 1, 2, 3] |
 //
+
 
 int main(void)
 {
@@ -145,26 +228,109 @@ int main(void)
 	*
 	*
 	*/
-	KeyCode keycode = KeyCode::KEY_1;
+	
+	//Debounce Variables
+	KeyCode lastKeyOfRow[4] = {KeyCode::KEY_UNDEFINED};
+	KeyCode currentKeyOfRow[4] = {KeyCode::KEY_UNDEFINED};
+	long long keyLastUpdate = HAL_GetTick(); 
+	//
+	
+	// Input Target
+		KeyCode target = KeyCode::KEY_UNDEFINED;
+		int target_value[4] = {0};  //offset = 10
+		int tempValue = 0;
+		int index = 2;
+	//
+		bool showResult = false;
+
+		FixedQueue<int> displayQueue(4);
+		
   while (true)
   {
 		// Reset All State
 		HAL_GPIO_WritePin(GPIOC, 0xFF00, GPIO_PIN_RESET);
 		HAL_Delay(1);
 		
+		
+		//
+		//  Every scanning overrides last result!
+		//  You must take this into account.
+		//
 		for(int i = 0; i < 4; i++){
 			// Reset Scan Lines -> GPIOC 8 ~ 11  
 			HAL_GPIO_WritePin(GPIOC, 0x0F00, GPIO_PIN_SET);
-
 			// Set Current Scan Line (From PC8 to PC11)
 			// 0000 1111 0000 0000
 			HAL_GPIO_WritePin(GPIOC, 0x0100 << i, GPIO_PIN_RESET);
-			keycode = scanKey(i);
-			if(keycode == KeyCode::KEY_UNDEFINED)
-				continue;
-			HAL_GPIO_WritePin(GPIOB, 0xFF00, GPIO_PIN_RESET);
-			HAL_GPIO_WritePin(GPIOB, Number[(int) keycode], GPIO_PIN_SET);
 			HAL_Delay(1);
+			auto keycode = scanKey(i);
+		
+			//Debounce 
+			if(keycode != lastKeyOfRow[i]){
+				keyLastUpdate = HAL_GetTick();
+			}
+			//50 = debounce delay
+			if((HAL_GetTick() - keyLastUpdate) > 40){
+				if(keycode != currentKeyOfRow[i]){
+					currentKeyOfRow[i] = keycode;
+					if(keycode != KeyCode::KEY_UNDEFINED){
+						//
+						// Button Action
+						//
+						auto keycodeInt = (int) keycode;
+						showResult = false;
+						//Where keycode is one of [A, B, C, D]
+						if(keycodeInt >= 10 && keycodeInt <= 13){
+							target = keycode;
+							tempValue = 0;
+						// Save
+						}else if(keycode == KeyCode::KEY_ASTERISK){
+							target_value[((int) target) - 10] = tempValue;
+							target = KeyCode::KEY_UNDEFINED;
+						}else if(keycode == KeyCode::KEY_HASH){
+							target = KeyCode::KEY_UNDEFINED;
+							int sum = 0;
+							for(int i = 0; i < 4; i++){
+								sum += target_value[i];
+							}	
+							showResult = true;
+						}else {
+							// Has a target specified.
+							if(target != KeyCode::KEY_UNDEFINED){
+								if(index == 0) index = 2;
+								tempValue += (int) keycode * (int) pow(10, index);
+							}
+						}
+						//
+						//
+						//
+					}
+				}
+			}
+			lastKeyOfRow[i] = keycode;
+			//Debounce End
+			
+			//
+			// Do Display
+			//
+			
+			if(target == KeyCode::KEY_UNDEFINED)
+				continue;
+			
+			if(!showResult) displayQueue.offer(translateKeyCodeToLED(target));
+			else displayQueue.offer(0);
+			
+			int target_val = target_value[(int)target - 10];
+			displayQueue.offer(translateKeyCodeToLED((KeyCode) (target_val / 100)));
+			displayQueue.offer(translateKeyCodeToLED((KeyCode) (target_val / 10)));
+			displayQueue.offer(translateKeyCodeToLED((KeyCode) (target_val % 10)));
+
+				
+			HAL_GPIO_WritePin(GPIOB, 0xFF00, GPIO_PIN_RESET);
+			HAL_GPIO_WritePin(GPIOB, displayQueue[i], GPIO_PIN_SET);
+			HAL_Delay(1);
+			HAL_GPIO_WritePin(GPIOB, 0xFF00, GPIO_PIN_RESET);
+			displayQueue.clear(0);
 		}
   }
   /* USER CODE END 3 */
