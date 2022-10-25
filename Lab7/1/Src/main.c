@@ -99,8 +99,8 @@ int translateKeyCodeToLED(KeyCode code){
 	else if(code == KeyCode::KEY_B)
 		return 0x3E00;
 	else if(code == KeyCode::KEY_C)
-			//1001 1100
-		return 0x9C00;
+        //0001 1010
+		return 0x1A00;
 	else if(code == KeyCode::KEY_D)
 			// 0111 1010
 		return 0x7A00;
