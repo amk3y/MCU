@@ -61,16 +61,15 @@ static void MX_TIM3_Init(void);
 
 /* USER CODE END 0 */
 
-volatile int value = 9995;
+
+volatile bool button_2_update = false;
+volatile bool button_3_update = false;
 
 void HAL_GPIO_EXTI_Callback(uint16_t GPIO_Pin){
-	
 	if(GPIO_Pin == GPIO_PIN_2){
-		value += 1;
-		if(value > 9999) value = 0;
+		button_2_update = true;
 	}else if(GPIO_Pin == GPIO_PIN_3){
-		value -= 1;
-		if(value < 0) value = 9999;
+		button_3_update = true;
 	}
 }
 
@@ -92,14 +91,31 @@ int main(void)
   MX_GPIO_Init();
   MX_TIM3_Init();
 	
-	
+	int value = 9995;
 	int displayArray[4] = {0};
+	int64_t button_2_last_update = 0L;
+	int64_t button_3_last_update = 0L;
 
   while (1)
   {
+		if(button_2_update && (HAL_GetTick() - button_2_last_update) > 100){ 
+			value++;
+			button_2_update = false;
+			button_2_last_update = HAL_GetTick();
+		}
+		else if(button_3_update && (HAL_GetTick() - button_2_last_update) > 100){ 
+			value--;
+			button_3_update = false;
+			button_3_last_update = HAL_GetTick();
+		}
+
+		
+		if(value > 9999) value = 0;
+		else if(value < 0) value = 9999;
+		
 		displayArray[3] = value / 1000;
-		displayArray[2] = (value / 1000) % 10;
-		displayArray[1] = (value / 100) % 10;
+		displayArray[2] = (value / 100) % 10;
+		displayArray[1] = (value / 10) % 10;
 		displayArray[0] = value % 10;
 
     for(int i = 0; i < 4; i++){
