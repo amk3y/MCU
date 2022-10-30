@@ -198,36 +198,43 @@ private:
 };
 
 
-	KeyCode lastKeyOfRow[4] = {KeyCode::KEY_UNDEFINED};
-	KeyCode currentKeyOfRow[4] = {KeyCode::KEY_UNDEFINED};
-	long long keyLastUpdate = HAL_GetTick(); 
+KeyCode lastKeyOfRow[4] = {KeyCode::KEY_UNDEFINED};
+KeyCode currentKeyOfRow[4] = {KeyCode::KEY_UNDEFINED};
+long long keyLastUpdate = HAL_GetTick(); 
 	
-	FixedQueue<int> displayQueue(4);
+FixedQueue<int> displayQueue(4);
 	
 //
 // | [0, 1, 2, 3] |
 //
 
+volatile int scanningIndex = 1;
+
 void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef* htim){
 		
 		if(htim->Instance != TIM3) return;
 	
+	HAL_GPIO_WritePin(GPIOC, 0xFF00, GPIO_PIN_SET);
+	HAL_GPIO_WritePin(GPIOB, Number[scanningIndex], GPIO_PIN_SET);
+	HAL_GPIO_WritePin(GPIOC, 0x0100 << scanningIndex, GPIO_PIN_RESET);
+	
+	scanningIndex++;
+	if(scanningIndex >= 4) scanningIndex = 0;
+	
+	return;
 		// Reset All State
-		HAL_GPIO_WritePin(GPIOC, 0xFF00, GPIO_PIN_RESET);
-		HAL_Delay(1);
-				//
-		//  Every scanning overrides last result!
-		//  You must take this into account.
-		//
-		for(int i = 0; i < 4; i++){
+			HAL_GPIO_WritePin(GPIOC, 0xFF00, GPIO_PIN_RESET);
+	
+			int i = scanningIndex;
+	
 			// Reset Scan Lines -> GPIOC 8 ~ 11  
+			HAL_GPIO_WritePin(GPIOB, 0xFF00, GPIO_PIN_RESET);
 			HAL_GPIO_WritePin(GPIOC, 0x0F00, GPIO_PIN_SET);
 			// Set Current Scan Line (From PC8 to PC11)
 			// 0000 1111 0000 0000
 			HAL_GPIO_WritePin(GPIOC, 0x0100 << i, GPIO_PIN_RESET);
-			HAL_Delay(1);
 			auto keycode = scanKey(i);
-		
+	
 			//Debounce 
 			if(keycode != lastKeyOfRow[i]){
 				keyLastUpdate = HAL_GetTick();
@@ -251,9 +258,10 @@ void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef* htim){
 
 			HAL_GPIO_WritePin(GPIOB, 0xFF00, GPIO_PIN_RESET);
 			HAL_GPIO_WritePin(GPIOB, displayQueue[i], GPIO_PIN_SET);
-			HAL_Delay(1);
-			HAL_GPIO_WritePin(GPIOB, 0xFF00, GPIO_PIN_RESET);
-		}
+			scanningIndex++;
+			if(scanningIndex >= 4) scanningIndex = 0;
+			
+		
 }
 
 
@@ -267,7 +275,7 @@ int main(void)
   HAL_Init();
   SystemClock_Config();
   MX_GPIO_Init();
-
+  MX_TIM3_Init();
 
 	/**
 	* Pin Definition
@@ -342,7 +350,7 @@ static void MX_TIM3_Init(void)
   htim3.Instance = TIM3;
   htim3.Init.Prescaler = 47999;
   htim3.Init.CounterMode = TIM_COUNTERMODE_UP;
-  htim3.Init.Period = 1;
+  htim3.Init.Period = 2;
   htim3.Init.ClockDivision = TIM_CLOCKDIVISION_DIV1;
   htim3.Init.AutoReloadPreload = TIM_AUTORELOAD_PRELOAD_DISABLE;
   if (HAL_TIM_Base_Init(&htim3) != HAL_OK)
