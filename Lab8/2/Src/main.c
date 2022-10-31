@@ -20,7 +20,6 @@
 
 /* Includes ------------------------------------------------------------------*/
 #include "main.h"
-#include <cmath>
 
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
@@ -62,10 +61,6 @@ static void MX_TIM3_Init(void);
 
 /* USER CODE END 0 */
 
-/**
-  * @brief  The application entry point.
-  * @retval int
-  */
 
 int Number[10] = {
 	0xFC00, 0x6000, 0xDA00,
@@ -74,7 +69,7 @@ int Number[10] = {
 	0xE600
 };
 
-enum class KeyCode {
+enum KeyCode {
 	
 	KEY_0,
 	KEY_1, KEY_2, KEY_3,
@@ -85,217 +80,114 @@ enum class KeyCode {
 	KEY_UNDEFINED
 };
 
-int translateKeyCodeToLED(KeyCode code){
-	if((int) code < 10)
-		return Number[(int) code];
-	else if(code == KeyCode::KEY_A)
-		return 0xEE00;
-	else if(code == KeyCode::KEY_B)
-		return 0x3E00;
-	else if(code == KeyCode::KEY_C)
-        //0001 1010
-		return 0x1A00;
-	else if(code == KeyCode::KEY_D)
-			// 0111 1010
-		return 0x7A00;
-	else if(code == KeyCode::KEY_ASTERISK)
-		//1001 1110
-		return 0x9E00;
-	else if(code == KeyCode::KEY_HASH)
-		//1000 1110
-		return 0x8E00;
-	else 
-		return 0x9000;
-}
+volatile int value = 9995;
+int64_t button_2_last_update = 0L;
+int64_t button_3_last_update = 0L;
 
-KeyCode scanKey(int row){
-	switch (row) {
-		case 0: {
-			if(HAL_GPIO_ReadPin(GPIOC, GPIO_PIN_12) == 0) return KeyCode::KEY_1;
-			else if(HAL_GPIO_ReadPin(GPIOC, GPIO_PIN_13) == 0) return KeyCode::KEY_2;
-			else if(HAL_GPIO_ReadPin(GPIOC, GPIO_PIN_14) == 0) return KeyCode::KEY_3;
-			else if(HAL_GPIO_ReadPin(GPIOC, GPIO_PIN_15) == 0) return KeyCode::KEY_A;
-			else return KeyCode::KEY_UNDEFINED;
-		}
-		case 1: {
-			if(HAL_GPIO_ReadPin(GPIOC, GPIO_PIN_12) == 0) return KeyCode::KEY_4;
-			else if(HAL_GPIO_ReadPin(GPIOC, GPIO_PIN_13) == 0) return KeyCode::KEY_5;
-			else if(HAL_GPIO_ReadPin(GPIOC, GPIO_PIN_14) == 0) return KeyCode::KEY_6;
-			else if(HAL_GPIO_ReadPin(GPIOC, GPIO_PIN_15) == 0) return KeyCode::KEY_B;
-			else return KeyCode::KEY_UNDEFINED;
-		}
-		case 2: {
-			if(HAL_GPIO_ReadPin(GPIOC, GPIO_PIN_12) == 0) return KeyCode::KEY_7;
-			else if(HAL_GPIO_ReadPin(GPIOC, GPIO_PIN_13) == 0) return KeyCode::KEY_8;
-			else if(HAL_GPIO_ReadPin(GPIOC, GPIO_PIN_14) == 0) return KeyCode::KEY_9;
-			else if(HAL_GPIO_ReadPin(GPIOC, GPIO_PIN_15) == 0) return KeyCode::KEY_C;
-			else return KeyCode::KEY_UNDEFINED;
-		}
-		case 3: {
-			if(HAL_GPIO_ReadPin(GPIOC, GPIO_PIN_12) == 0) return KeyCode::KEY_ASTERISK;
-			else if(HAL_GPIO_ReadPin(GPIOC, GPIO_PIN_13) == 0) return KeyCode::KEY_0;
-			else if(HAL_GPIO_ReadPin(GPIOC, GPIO_PIN_14) == 0) return KeyCode::KEY_HASH;
-			else if(HAL_GPIO_ReadPin(GPIOC, GPIO_PIN_15) == 0) return KeyCode::KEY_D;
-			else return KeyCode::KEY_UNDEFINED;
-		}
-		default: {
-			return KeyCode::KEY_UNDEFINED;
-		}
+void HAL_GPIO_EXTI_Callback(uint16_t GPIO_Pin){
+	int64_t currentMills = HAL_GetTick();
+	if(GPIO_Pin == GPIO_PIN_2 && (currentMills - button_2_last_update) > 50){
+		value++;
+		button_2_last_update = HAL_GetTick();
+	}else if(GPIO_Pin == GPIO_PIN_3 && (currentMills - button_2_last_update) > 50){
+		value--;
+		button_3_last_update = HAL_GetTick();
 	}
+	
+	if(value > 9999) value = 0;
+		else if(value < 0) value = 9999;
+	
 }
 
-/**
-*
-* No STL ?
-* Make one yourself :)
-*
-*/
-template<typename T>
-class FixedQueue {
-
-public:
-    FixedQueue(int capacity)
-    : _maxCapacity(capacity)
-    , _data(new T[capacity])
-    , _size(0) {
-
-    };
-
-    ~FixedQueue(){
-        free(_data);
-    };
-
-    T *poll() {
-        if (_size == 0) return nullptr;
-        return &_data[--_size];
-
-    }
-
-    void offer(T data) {
-        _size = _size < _maxCapacity ? _size + 1 : _maxCapacity;
-       // printf("%d %d %d %d %d ", _data[0], _data[1], _data[2], _data[3], _data[4]);
-        for (int i = _size - 1; i > 0; i--) {
-            _data[i] = _data[i - 1];
-        }
-        _data[0] = data;
-    }
-
-    T operator[](int index) {
-        return _data[index];
-    }
-
-    int size(){
-        return _size;
-    }
-
-    int capacity(){
-        return _maxCapacity;
-    }
-private:
-    T* _data;
-    int _size;
-    const int _maxCapacity;
-};
-
-
-KeyCode lastKeyOfRow[4] = {KeyCode::KEY_UNDEFINED};
-KeyCode currentKeyOfRow[4] = {KeyCode::KEY_UNDEFINED};
-long long keyLastUpdate = HAL_GetTick(); 
 	
-FixedQueue<int> displayQueue(4);
-	
-//
-// | [0, 1, 2, 3] |
-//
-
 volatile int scanningIndex = 1;
 
-void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef* htim){
+
+void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim){
+	if(htim->Instance != TIM3) return;
+	
+	
+		int displayArray[4] = {0};
+		displayArray[3] = value / 1000;
+		displayArray[2] = (value / 100) % 10;
+		displayArray[1] = (value / 10) % 10;
+		displayArray[0] = value % 10;
 		
-		if(htim->Instance != TIM3) return;
-	
-	HAL_GPIO_WritePin(GPIOC, 0xFF00, GPIO_PIN_SET);
-	HAL_GPIO_WritePin(GPIOB, Number[scanningIndex], GPIO_PIN_SET);
-	HAL_GPIO_WritePin(GPIOC, 0x0100 << scanningIndex, GPIO_PIN_RESET);
-	
-	scanningIndex++;
-	if(scanningIndex >= 4) scanningIndex = 0;
-	
-	return;
-		// Reset All State
-			HAL_GPIO_WritePin(GPIOC, 0xFF00, GPIO_PIN_RESET);
-	
-			int i = scanningIndex;
-	
-			// Reset Scan Lines -> GPIOC 8 ~ 11  
-			HAL_GPIO_WritePin(GPIOB, 0xFF00, GPIO_PIN_RESET);
-			HAL_GPIO_WritePin(GPIOC, 0x0F00, GPIO_PIN_SET);
+		// Reset Scan Lines -> GPIOC 8 ~ 11  
+		HAL_GPIO_WritePin(GPIOC, 0x0F00, GPIO_PIN_SET);
+		// Reset LED Lines 
+		HAL_GPIO_WritePin(GPIOB, 0xFF00, GPIO_PIN_RESET);
+		
 			// Set Current Scan Line (From PC8 to PC11)
 			// 0000 1111 0000 0000
-			HAL_GPIO_WritePin(GPIOC, 0x0100 << i, GPIO_PIN_RESET);
-			auto keycode = scanKey(i);
-	
-			//Debounce 
-			if(keycode != lastKeyOfRow[i]){
-				keyLastUpdate = HAL_GetTick();
-			}
-			//40 = debounce delay
-			if((HAL_GetTick() - keyLastUpdate) > 40){
-				if(keycode != currentKeyOfRow[i]){
-					currentKeyOfRow[i] = keycode;
-					if(keycode != KeyCode::KEY_UNDEFINED){
-						// Button Action
-						displayQueue.offer(translateKeyCodeToLED(keycode));
-					}
-				}
-			}
-			lastKeyOfRow[i] = keycode;
-			//Debounce End
-			
+		HAL_GPIO_WritePin(GPIOC, 0x0100 << scanningIndex, GPIO_PIN_RESET);
 			//
 			// Do Display
 			//
-
-			HAL_GPIO_WritePin(GPIOB, 0xFF00, GPIO_PIN_RESET);
-			HAL_GPIO_WritePin(GPIOB, displayQueue[i], GPIO_PIN_SET);
-			scanningIndex++;
-			if(scanningIndex >= 4) scanningIndex = 0;
+		HAL_GPIO_WritePin(GPIOB, 0xFF00, GPIO_PIN_RESET);
+		HAL_GPIO_WritePin(GPIOB, Number[displayArray[scanningIndex]], GPIO_PIN_SET);
+		
 			
 		
+		scanningIndex++;
+		if(scanningIndex >= 4) scanningIndex = 0;
+
 }
+//#ifdef __cplusplus
+//}
+//#endif
 
 
+
+
+
+
+
+/**
+  * @brief  The application entry point.
+  * @retval int
+  */
 int main(void)
 {
+  /* USER CODE BEGIN 1 */
 
-	for(int i = 0; i < 4; i++){
-		displayQueue.offer(0);
-	}
-	
+  /* USER CODE END 1 */
+  
+
+  /* MCU Configuration--------------------------------------------------------*/
+
+  /* Reset of all peripherals, Initializes the Flash interface and the Systick. */
   HAL_Init();
+
+  /* USER CODE BEGIN Init */
+
+  /* USER CODE END Init */
+
+  /* Configure the system clock */
   SystemClock_Config();
+
+  /* USER CODE BEGIN SysInit */
+
+  /* USER CODE END SysInit */
+
+  /* Initialize all configured peripherals */
   MX_GPIO_Init();
   MX_TIM3_Init();
+  /* USER CODE BEGIN 2 */
 
-	/**
-	* Pin Definition
-	* 
-	* GPIOB -> Seven Segement Display LED
-	*
-	*
-	*
-	*/
-	
-	//Debounce Variables
+  /* USER CODE END 2 */
 
+  /* Infinite loop */
+  /* USER CODE BEGIN WHILE */
 	HAL_TIM_Base_Start_IT(&htim3);
-  while (true)
+  while (1)
   {
+    /* USER CODE END WHILE */
 
+    /* USER CODE BEGIN 3 */
   }
   /* USER CODE END 3 */
 }
-
 
 /**
   * @brief System Clock Configuration
@@ -385,7 +277,6 @@ static void MX_GPIO_Init(void)
 
   /* GPIO Ports Clock Enable */
   __HAL_RCC_GPIOC_CLK_ENABLE();
-  __HAL_RCC_GPIOF_CLK_ENABLE();
   __HAL_RCC_GPIOB_CLK_ENABLE();
 
   /*Configure GPIO pin Output Level */
@@ -395,17 +286,17 @@ static void MX_GPIO_Init(void)
   /*Configure GPIO pin Output Level */
   HAL_GPIO_WritePin(GPIOC, GPIO_PIN_8|GPIO_PIN_9|GPIO_PIN_10|GPIO_PIN_11, GPIO_PIN_RESET);
 
-  /*Configure GPIO pins : PC13 PC14 PC12 */
-  GPIO_InitStruct.Pin = GPIO_PIN_13|GPIO_PIN_14|GPIO_PIN_12;
-  GPIO_InitStruct.Mode = GPIO_MODE_INPUT;
-  GPIO_InitStruct.Pull = GPIO_PULLUP;
-  HAL_GPIO_Init(GPIOC, &GPIO_InitStruct);
-
-  /*Configure GPIO pin : PC15 */
-  GPIO_InitStruct.Pin = GPIO_PIN_15;
+  /*Configure GPIO pins : PC13 PC14 PC15 */
+  GPIO_InitStruct.Pin = GPIO_PIN_13|GPIO_PIN_14|GPIO_PIN_15;
   GPIO_InitStruct.Mode = GPIO_MODE_INPUT;
   GPIO_InitStruct.Pull = GPIO_NOPULL;
   HAL_GPIO_Init(GPIOC, &GPIO_InitStruct);
+
+  /*Configure GPIO pins : PB2 PB3 */
+  GPIO_InitStruct.Pin = GPIO_PIN_2|GPIO_PIN_3;
+  GPIO_InitStruct.Mode = GPIO_MODE_IT_RISING;
+  GPIO_InitStruct.Pull = GPIO_NOPULL;
+  HAL_GPIO_Init(GPIOB, &GPIO_InitStruct);
 
   /*Configure GPIO pins : PB10 PB11 PB12 PB13 
                            PB14 PB15 PB8 PB9 */
@@ -422,6 +313,10 @@ static void MX_GPIO_Init(void)
   GPIO_InitStruct.Pull = GPIO_NOPULL;
   GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
   HAL_GPIO_Init(GPIOC, &GPIO_InitStruct);
+
+  /* EXTI interrupt init*/
+  HAL_NVIC_SetPriority(EXTI2_3_IRQn, 0, 0);
+  HAL_NVIC_EnableIRQ(EXTI2_3_IRQn);
 
 }
 

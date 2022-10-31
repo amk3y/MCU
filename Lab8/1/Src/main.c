@@ -62,17 +62,6 @@ static void MX_TIM3_Init(void);
 /* USER CODE END 0 */
 
 
-volatile bool button_2_update = false;
-volatile bool button_3_update = false;
-
-void HAL_GPIO_EXTI_Callback(uint16_t GPIO_Pin){
-	if(GPIO_Pin == GPIO_PIN_2){
-		button_2_update = true;
-	}else if(GPIO_Pin == GPIO_PIN_3){
-		button_3_update = true;
-	}
-}
-
 int Number[10] = {
 	0xFC00, 0x6000, 0xDA00,
 	0xF200, 0x6600, 0xB600,
@@ -80,63 +69,124 @@ int Number[10] = {
 	0xE600
 };
 
+enum KeyCode {
+	
+	KEY_0,
+	KEY_1, KEY_2, KEY_3,
+	KEY_4, KEY_5, KEY_6,
+	KEY_7, KEY_8, KEY_9,
+	KEY_A, KEY_B, KEY_C, KEY_D,
+	KEY_ASTERISK, KEY_HASH,
+	KEY_UNDEFINED
+};
+
+volatile int value = 9995;
+int64_t button_2_last_update = 0L;
+int64_t button_3_last_update = 0L;
+
+void HAL_GPIO_EXTI_Callback(uint16_t GPIO_Pin){
+	int64_t currentMills = HAL_GetTick();
+	if(GPIO_Pin == GPIO_PIN_2 && (currentMills - button_2_last_update) > 50){
+		value++;
+		button_2_last_update = HAL_GetTick();
+	}else if(GPIO_Pin == GPIO_PIN_3 && (currentMills - button_2_last_update) > 50){
+		value--;
+		button_3_last_update = HAL_GetTick();
+	}
+	
+	if(value > 9999) value = 0;
+	else if(value < 0) value = 9999;
+	
+}
+
+	
+volatile int scanningIndex = 1;
+
+
+void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim){
+	if(htim->Instance != TIM3) return;
+	
+	
+		int displayArray[4] = {0};
+		displayArray[3] = value / 1000;
+		displayArray[2] = (value / 100) % 10;
+		displayArray[1] = (value / 10) % 10;
+		displayArray[0] = value % 10;
+		
+		// Reset Scan Lines -> GPIOC 8 ~ 11  
+		HAL_GPIO_WritePin(GPIOC, 0x0F00, GPIO_PIN_SET);
+		// Reset LED Lines 
+		HAL_GPIO_WritePin(GPIOB, 0xFF00, GPIO_PIN_RESET);
+		
+			// Set Current Scan Line (From PC8 to PC11)
+			// 0000 1111 0000 0000
+		HAL_GPIO_WritePin(GPIOC, 0x0100 << scanningIndex, GPIO_PIN_RESET);
+			//
+			// Do Display
+			//
+		HAL_GPIO_WritePin(GPIOB, 0xFF00, GPIO_PIN_RESET);
+		HAL_GPIO_WritePin(GPIOB, Number[displayArray[scanningIndex]], GPIO_PIN_SET);
+		
+			
+		
+		scanningIndex++;
+		if(scanningIndex >= 4) scanningIndex = 0;
+
+}
+//#ifdef __cplusplus
+//}
+//#endif
+
+
+
+
+
+
+
 /**
   * @brief  The application entry point.
   * @retval int
   */
 int main(void)
 {
+  /* USER CODE BEGIN 1 */
+
+  /* USER CODE END 1 */
+  
+
+  /* MCU Configuration--------------------------------------------------------*/
+
+  /* Reset of all peripherals, Initializes the Flash interface and the Systick. */
   HAL_Init();
+
+  /* USER CODE BEGIN Init */
+
+  /* USER CODE END Init */
+
+  /* Configure the system clock */
   SystemClock_Config();
+
+  /* USER CODE BEGIN SysInit */
+
+  /* USER CODE END SysInit */
+
+  /* Initialize all configured peripherals */
   MX_GPIO_Init();
   MX_TIM3_Init();
-	
-	int value = 9995;
-	int displayArray[4] = {0};
-	int64_t button_2_last_update = 0L;
-	int64_t button_3_last_update = 0L;
+  /* USER CODE BEGIN 2 */
 
+  /* USER CODE END 2 */
+
+  /* Infinite loop */
+  /* USER CODE BEGIN WHILE */
+	HAL_TIM_Base_Start_IT(&htim3);
   while (1)
   {
-		if(button_2_update && (HAL_GetTick() - button_2_last_update) > 100){ 
-			value++;
-			button_2_update = false;
-			button_2_last_update = HAL_GetTick();
-		}
-		else if(button_3_update && (HAL_GetTick() - button_2_last_update) > 100){ 
-			value--;
-			button_3_update = false;
-			button_3_last_update = HAL_GetTick();
-		}
+    /* USER CODE END WHILE */
 
-		
-		if(value > 9999) value = 0;
-		else if(value < 0) value = 9999;
-		
-		displayArray[3] = value / 1000;
-		displayArray[2] = (value / 100) % 10;
-		displayArray[1] = (value / 10) % 10;
-		displayArray[0] = value % 10;
-
-    for(int i = 0; i < 4; i++){
-			// Reset Scan Lines -> GPIOC 8 ~ 11  
-			HAL_GPIO_WritePin(GPIOC, 0x0F00, GPIO_PIN_SET);
-			// Set Current Scan Line (From PC8 to PC11)
-			// 0000 1111 0000 0000
-			HAL_GPIO_WritePin(GPIOC, 0x0100 << i, GPIO_PIN_RESET);
-			HAL_Delay(1);
-
-			//
-			// Do Display
-			//
-
-			HAL_GPIO_WritePin(GPIOB, 0xFF00, GPIO_PIN_RESET);
-			HAL_GPIO_WritePin(GPIOB, Number[displayArray[i]], GPIO_PIN_SET);
-			HAL_Delay(1);
-			HAL_GPIO_WritePin(GPIOB, 0xFF00, GPIO_PIN_RESET);
-		}
+    /* USER CODE BEGIN 3 */
   }
-
+  /* USER CODE END 3 */
 }
 
 /**
@@ -190,9 +240,9 @@ static void MX_TIM3_Init(void)
 
   /* USER CODE END TIM3_Init 1 */
   htim3.Instance = TIM3;
-  htim3.Init.Prescaler = 0;
+  htim3.Init.Prescaler = 47999;
   htim3.Init.CounterMode = TIM_COUNTERMODE_UP;
-  htim3.Init.Period = 0;
+  htim3.Init.Period = 2;
   htim3.Init.ClockDivision = TIM_CLOCKDIVISION_DIV1;
   htim3.Init.AutoReloadPreload = TIM_AUTORELOAD_PRELOAD_DISABLE;
   if (HAL_TIM_Base_Init(&htim3) != HAL_OK)
@@ -227,7 +277,6 @@ static void MX_GPIO_Init(void)
 
   /* GPIO Ports Clock Enable */
   __HAL_RCC_GPIOC_CLK_ENABLE();
-  __HAL_RCC_GPIOF_CLK_ENABLE();
   __HAL_RCC_GPIOB_CLK_ENABLE();
 
   /*Configure GPIO pin Output Level */
@@ -237,14 +286,8 @@ static void MX_GPIO_Init(void)
   /*Configure GPIO pin Output Level */
   HAL_GPIO_WritePin(GPIOC, GPIO_PIN_8|GPIO_PIN_9|GPIO_PIN_10|GPIO_PIN_11, GPIO_PIN_RESET);
 
-  /*Configure GPIO pins : PC13 PC14 PC12 */
-  GPIO_InitStruct.Pin = GPIO_PIN_13|GPIO_PIN_14|GPIO_PIN_12;
-  GPIO_InitStruct.Mode = GPIO_MODE_INPUT;
-  GPIO_InitStruct.Pull = GPIO_PULLUP;
-  HAL_GPIO_Init(GPIOC, &GPIO_InitStruct);
-
-  /*Configure GPIO pin : PC15 */
-  GPIO_InitStruct.Pin = GPIO_PIN_15;
+  /*Configure GPIO pins : PC13 PC14 PC15 */
+  GPIO_InitStruct.Pin = GPIO_PIN_13|GPIO_PIN_14|GPIO_PIN_15;
   GPIO_InitStruct.Mode = GPIO_MODE_INPUT;
   GPIO_InitStruct.Pull = GPIO_NOPULL;
   HAL_GPIO_Init(GPIOC, &GPIO_InitStruct);
