@@ -20,7 +20,7 @@
 
 /* Includes ------------------------------------------------------------------*/
 #include "main.h"
-
+#include <math.h>
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
 
@@ -61,54 +61,188 @@ static void MX_TIM3_Init(void);
 
 /* USER CODE END 0 */
 
+
+
+int Number[10] = {
+	0xFC00, 0x6000, 0xDA00,
+	0xF200, 0x6600, 0xB600,
+	0xBE00, 0xE000, 0xFE00, 
+	0xE600
+};
+
+enum KeyCode {
+	
+	KEY_0,
+	KEY_1, KEY_2, KEY_3,
+	KEY_4, KEY_5, KEY_6,
+	KEY_7, KEY_8, KEY_9,
+	KEY_A, KEY_B, KEY_C, KEY_D,
+	KEY_ASTERISK, KEY_HASH,
+	KEY_UNDEFINED
+};
+
+int translateKeyCodeToLED(enum KeyCode code){
+	if((int) code < 10)
+		return Number[(int) code];
+	else if(code == KEY_A)
+		return 0xEE00;
+	else if(code == KEY_B)
+		return 0x3E00;
+	else if(code == KEY_C)
+        //0001 1010
+		return 0x1A00;
+	else if(code == KEY_D)
+			// 0111 1010
+		return 0x7A00;
+	else if(code == KEY_ASTERISK)
+		//1001 1110
+		return 0x9E00;
+	else if(code == KEY_HASH)
+		//1000 1110
+		return 0x8E00;
+	else 
+		return 0x9000;
+}
+
+enum KeyCode scanKey(int row){
+	switch (row){
+		case 0: {
+			if(HAL_GPIO_ReadPin(GPIOC, GPIO_PIN_12) == 0) return KEY_1;
+			else if(HAL_GPIO_ReadPin(GPIOC, GPIO_PIN_13) == 0) return KEY_2;
+			else if(HAL_GPIO_ReadPin(GPIOC, GPIO_PIN_14) == 0) return KEY_3;
+			else if(HAL_GPIO_ReadPin(GPIOC, GPIO_PIN_15) == 0) return KEY_A;
+			else return KEY_UNDEFINED;
+		}
+		case 1: {
+			if(HAL_GPIO_ReadPin(GPIOC, GPIO_PIN_12) == 0) return KEY_4;
+			else if(HAL_GPIO_ReadPin(GPIOC, GPIO_PIN_13) == 0) return KEY_5;
+			else if(HAL_GPIO_ReadPin(GPIOC, GPIO_PIN_14) == 0) return KEY_6;
+			else if(HAL_GPIO_ReadPin(GPIOC, GPIO_PIN_15) == 0) return KEY_B;
+			else return KEY_UNDEFINED;
+		}
+		case 2: {
+			if(HAL_GPIO_ReadPin(GPIOC, GPIO_PIN_12) == 0) return KEY_7;
+			else if(HAL_GPIO_ReadPin(GPIOC, GPIO_PIN_13) == 0) return KEY_8;
+			else if(HAL_GPIO_ReadPin(GPIOC, GPIO_PIN_14) == 0) return KEY_9;
+			else if(HAL_GPIO_ReadPin(GPIOC, GPIO_PIN_15) == 0) return KEY_C;
+			else return KEY_UNDEFINED;
+		}
+		case 3: {
+			if(HAL_GPIO_ReadPin(GPIOC, GPIO_PIN_12) == 0) return KEY_ASTERISK;
+			else if(HAL_GPIO_ReadPin(GPIOC, GPIO_PIN_13) == 0) return KEY_0;
+			else if(HAL_GPIO_ReadPin(GPIOC, GPIO_PIN_14) == 0) return KEY_HASH;
+			else if(HAL_GPIO_ReadPin(GPIOC, GPIO_PIN_15) == 0) return KEY_D;
+			else return KEY_UNDEFINED;
+		}
+		default: {
+			return KEY_UNDEFINED;
+		}
+	}
+}
+
+
+
+volatile int value = 0;
+enum KeyCode lastKeyOfRow[4] = {KEY_UNDEFINED};
+enum KeyCode currentKeyOfRow[4] = {KEY_UNDEFINED};
+int64_t keyLastUpdate = 0L; 
+
+volatile int selectedIndex = 3;
+volatile int scanningIndex = 0;
+
+int timerEnabled = 0;
+int timerEnded = 0;
+
+
+void tick_timer_2(){
+
+}
+
+void tick_timer_3(){
+	// Reset Scan Lines -> GPIOC 8 ~ 11  
+	HAL_GPIO_WritePin(GPIOC, 0x0F00, GPIO_PIN_SET);
+	// Reset LED Lines 
+	HAL_GPIO_WritePin(GPIOB, 0xFF00, GPIO_PIN_RESET);
+	
+	// Set Current Scan Line (From PC8 to PC11)
+	// 0000 1111 0000 0000
+	HAL_GPIO_WritePin(GPIOC, 0x0100 << scanningIndex, GPIO_PIN_RESET);
+	enum KeyCode keycode = scanKey(scanningIndex);
+	
+	//Debounce 
+	if(keycode != lastKeyOfRow[scanningIndex]){
+			keyLastUpdate = HAL_GetTick();
+	}
+	
+	if((HAL_GetTick() - keyLastUpdate) > 70){
+				if(keycode != currentKeyOfRow[scanningIndex]){
+					currentKeyOfRow[scanningIndex] = keycode;
+					if(keycode != KEY_UNDEFINED){
+						// Button Action
+						if(keycode == KEY_HASH){
+							selectedIndex--;
+							if(selectedIndex < 0) selectedIndex = 3;
+						}else if(keycode == KEY_ASTERISK){
+						  // TODO: Start Timer;
+						}else if(((int) keycode) < 10){
+							// 1234 -> 1334
+							// 1234 - 200 = 1034
+							// 1034 + 300 = 1334
+							value = value - ( (int) (value * pow(10, -selectedIndex)) % 10 *  pow(10, selectedIndex))
+							+ (keycode * pow(10, selectedIndex));
+						}
+						// Button Action End
+					}
+				}
+			}
+	
+			lastKeyOfRow[scanningIndex] = keycode;
+			//Debounce End
+	
+
+			
+		int displayArray[4] = {0, 0, 0, 0};
+		displayArray[3] =  value  / 1000 % 10;
+		displayArray[2] = (value / 100) % 10;
+		displayArray[1] = (value / 10) % 10;
+		displayArray[0] = value % 10;
+			//
+			// Do Display
+			//
+		HAL_GPIO_WritePin(GPIOB, 0xFF00, GPIO_PIN_RESET);
+		HAL_GPIO_WritePin(GPIOB, Number[displayArray[scanningIndex]], GPIO_PIN_SET);
+		
+	
+		scanningIndex++;
+		if(scanningIndex >= 4) scanningIndex = 0;
+
+}
+
+void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim){
+	if(htim->Instance == TIM3){
+		tick_timer_3();
+	}else if(htim->Instance == TIM2){
+		tick_timer_2();
+	}
+}
+
 /**
   * @brief  The application entry point.
   * @retval int
   */
 int main(void)
 {
-  /* USER CODE BEGIN 1 */
-
-  /* USER CODE END 1 */
-  
-
-  /* MCU Configuration--------------------------------------------------------*/
-
-  /* Reset of all peripherals, Initializes the Flash interface and the Systick. */
   HAL_Init();
-
-  /* USER CODE BEGIN Init */
-
-  /* USER CODE END Init */
-
-  /* Configure the system clock */
   SystemClock_Config();
-
-  /* USER CODE BEGIN SysInit */
-
-  /* USER CODE END SysInit */
-
-  /* Initialize all configured peripherals */
   MX_GPIO_Init();
   MX_TIM3_Init();
-  /* USER CODE BEGIN 2 */
-
-  /* USER CODE END 2 */
-
-  /* Infinite loop */
-  /* USER CODE BEGIN WHILE */
-	
-
 	HAL_TIM_Base_Start_IT(&htim3);
 
 	
   while (1)
   {
-    /* USER CODE END WHILE */
 
-    /* USER CODE BEGIN 3 */
   }
-  /* USER CODE END 3 */
 }
 
 /**
@@ -164,7 +298,7 @@ static void MX_TIM3_Init(void)
   htim3.Instance = TIM3;
   htim3.Init.Prescaler = 47999;
   htim3.Init.CounterMode = TIM_COUNTERMODE_UP;
-  htim3.Init.Period = 999;
+  htim3.Init.Period = 1;
   htim3.Init.ClockDivision = TIM_CLOCKDIVISION_DIV1;
   htim3.Init.AutoReloadPreload = TIM_AUTORELOAD_PRELOAD_DISABLE;
   if (HAL_TIM_Base_Init(&htim3) != HAL_OK)
