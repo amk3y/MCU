@@ -148,7 +148,7 @@ int64_t keyLastUpdate = 0L;
 
 	
 volatile int scanningIndex = 0;
-volatile int displayArray[4];
+volatile int displayArray[4] = {0,0,0,0};
 
 void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim){
 	if(htim->Instance != TIM3) return;
@@ -162,24 +162,23 @@ void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim){
 	// 0000 1111 0000 0000
 	HAL_GPIO_WritePin(GPIOC, 0x0100 << scanningIndex, GPIO_PIN_RESET);
 	enum KeyCode keycode = scanKey(scanningIndex);
-	if(keycode != KEY_UNDEFINED){
-		displayArray[0] = translateKeyCodeToLED(keycode);
-	}
 	
 	//Debounce 
 	if(keycode != lastKeyOfRow[scanningIndex]){
 			keyLastUpdate = HAL_GetTick();
 	}
 	
-	if((HAL_GetTick() - keyLastUpdate) > 40){
+	if((HAL_GetTick() - keyLastUpdate) > 70){
 				if(keycode != currentKeyOfRow[scanningIndex]){
 					currentKeyOfRow[scanningIndex] = keycode;
 					if(keycode != KEY_UNDEFINED){
+						
 						// Button Action
 						 for (int i = 4; i > 0; i--) {
-							if(i == 4) continue;
-							else displayArray[i] = displayArray[i - 1];
+							  if(i == 4) continue;
+							  else displayArray[i] = displayArray[i - 1];
 							}
+							displayArray[0] = translateKeyCodeToLED(keycode);
 						// Button Action End
 					}
 				}
@@ -187,11 +186,7 @@ void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim){
 	
 			lastKeyOfRow[scanningIndex] = keycode;
 			//Debounce End
-			
-			//
-			// Do Display
-			//
-			
+	
 
 			//
 			// Do Display
@@ -253,7 +248,7 @@ int main(void)
 	
 
 	HAL_TIM_Base_Start_IT(&htim3);
-	
+
 	
   while (1)
   {
@@ -317,7 +312,7 @@ static void MX_TIM3_Init(void)
   htim3.Instance = TIM3;
   htim3.Init.Prescaler = 47999;
   htim3.Init.CounterMode = TIM_COUNTERMODE_UP;
-  htim3.Init.Period = 2;
+  htim3.Init.Period = 1;
   htim3.Init.ClockDivision = TIM_CLOCKDIVISION_DIV1;
   htim3.Init.AutoReloadPreload = TIM_AUTORELOAD_PRELOAD_DISABLE;
   if (HAL_TIM_Base_Init(&htim3) != HAL_OK)
