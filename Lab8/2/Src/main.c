@@ -86,16 +86,16 @@ int64_t button_3_last_update = 0L;
 
 void HAL_GPIO_EXTI_Callback(uint16_t GPIO_Pin){
 	int64_t currentMills = HAL_GetTick();
-	if(GPIO_Pin == GPIO_PIN_2 && (currentMills - button_2_last_update) > 50){
+	if(GPIO_Pin == GPIO_PIN_2 && (currentMills - button_2_last_update) > 250){
 		value++;
 		button_2_last_update = HAL_GetTick();
-	}else if(GPIO_Pin == GPIO_PIN_3 && (currentMills - button_2_last_update) > 50){
+	}else if(GPIO_Pin == GPIO_PIN_3 && (currentMills - button_2_last_update) > 250){
 		value--;
 		button_3_last_update = HAL_GetTick();
 	}
 	
 	if(value > 9999) value = 0;
-		else if(value < 0) value = 9999;
+	else if(value < 0) value = 9999;
 	
 }
 
