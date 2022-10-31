@@ -199,15 +199,6 @@ void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim){
 		if(scanningIndex >= 4) scanningIndex = 0;
 
 }
-//#ifdef __cplusplus
-//}
-//#endif
-
-
-
-
-
-
 
 /**
   * @brief  The application entry point.
