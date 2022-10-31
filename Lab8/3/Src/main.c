@@ -21,6 +21,7 @@
 /* Includes ------------------------------------------------------------------*/
 #include "main.h"
 #include <math.h>
+
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
 
@@ -42,6 +43,7 @@
 /* USER CODE END PM */
 
 /* Private variables ---------------------------------------------------------*/
+TIM_HandleTypeDef htim2;
 TIM_HandleTypeDef htim3;
 
 /* USER CODE BEGIN PV */
@@ -52,6 +54,7 @@ TIM_HandleTypeDef htim3;
 void SystemClock_Config(void);
 static void MX_GPIO_Init(void);
 static void MX_TIM3_Init(void);
+static void MX_TIM2_Init(void);
 /* USER CODE BEGIN PFP */
 
 /* USER CODE END PFP */
@@ -60,8 +63,6 @@ static void MX_TIM3_Init(void);
 /* USER CODE BEGIN 0 */
 
 /* USER CODE END 0 */
-
-
 
 int Number[10] = {
 	0xFC00, 0x6000, 0xDA00,
@@ -150,13 +151,18 @@ int64_t keyLastUpdate = 0L;
 volatile int selectedIndex = 3;
 volatile int scanningIndex = 0;
 
-int timerEnabled = 0;
-int timerEnded = 0;
-
+int timerRunning = 0;
 
 void tick_timer_2(){
-
+	value--;
+	if(value <= 0){
+		value = 0;
+		timerRunning = 0;
+		HAL_GPIO_WritePin(GPIOB, 0x0002, GPIO_PIN_SET);
+		HAL_TIM_Base_Stop_IT(&htim2);
+	}
 }
+
 
 void tick_timer_3(){
 	// Reset Scan Lines -> GPIOC 8 ~ 11  
@@ -169,6 +175,10 @@ void tick_timer_3(){
 	HAL_GPIO_WritePin(GPIOC, 0x0100 << scanningIndex, GPIO_PIN_RESET);
 	enum KeyCode keycode = scanKey(scanningIndex);
 	
+	
+	if(!timerRunning){
+				HAL_GPIO_WritePin(GPIOB, 0x0002, GPIO_PIN_RESET);
+
 	//Debounce 
 	if(keycode != lastKeyOfRow[scanningIndex]){
 			keyLastUpdate = HAL_GetTick();
@@ -183,7 +193,8 @@ void tick_timer_3(){
 							selectedIndex--;
 							if(selectedIndex < 0) selectedIndex = 3;
 						}else if(keycode == KEY_ASTERISK){
-						  // TODO: Start Timer;
+						  HAL_TIM_Base_Start_IT(&htim2);
+							timerRunning = 1;
 						}else if(((int) keycode) < 10){
 							// 1234 -> 1334
 							// 1234 - 200 = 1034
@@ -198,7 +209,7 @@ void tick_timer_3(){
 	
 			lastKeyOfRow[scanningIndex] = keycode;
 			//Debounce End
-	
+		}
 
 			
 		int displayArray[4] = {0, 0, 0, 0};
@@ -232,17 +243,46 @@ void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim){
   */
 int main(void)
 {
+  /* USER CODE BEGIN 1 */
+
+  /* USER CODE END 1 */
+  
+
+  /* MCU Configuration--------------------------------------------------------*/
+
+  /* Reset of all peripherals, Initializes the Flash interface and the Systick. */
   HAL_Init();
+
+  /* USER CODE BEGIN Init */
+
+  /* USER CODE END Init */
+
+  /* Configure the system clock */
   SystemClock_Config();
+
+  /* USER CODE BEGIN SysInit */
+
+  /* USER CODE END SysInit */
+
+  /* Initialize all configured peripherals */
   MX_GPIO_Init();
   MX_TIM3_Init();
-	HAL_TIM_Base_Start_IT(&htim3);
-
+  MX_TIM2_Init();
 	
+	HAL_TIM_Base_Start_IT(&htim3);
+  /* USER CODE BEGIN 2 */
+
+  /* USER CODE END 2 */
+
+  /* Infinite loop */
+  /* USER CODE BEGIN WHILE */
   while (1)
   {
+    /* USER CODE END WHILE */
 
+    /* USER CODE BEGIN 3 */
   }
+  /* USER CODE END 3 */
 }
 
 /**
@@ -278,6 +318,51 @@ void SystemClock_Config(void)
 }
 
 /**
+  * @brief TIM2 Initialization Function
+  * @param None
+  * @retval None
+  */
+static void MX_TIM2_Init(void)
+{
+
+  /* USER CODE BEGIN TIM2_Init 0 */
+
+  /* USER CODE END TIM2_Init 0 */
+
+  TIM_ClockConfigTypeDef sClockSourceConfig = {0};
+  TIM_MasterConfigTypeDef sMasterConfig = {0};
+
+  /* USER CODE BEGIN TIM2_Init 1 */
+
+  /* USER CODE END TIM2_Init 1 */
+  htim2.Instance = TIM2;
+  htim2.Init.Prescaler = 47999;
+  htim2.Init.CounterMode = TIM_COUNTERMODE_UP;
+  htim2.Init.Period = 10;
+  htim2.Init.ClockDivision = TIM_CLOCKDIVISION_DIV1;
+  htim2.Init.AutoReloadPreload = TIM_AUTORELOAD_PRELOAD_DISABLE;
+  if (HAL_TIM_Base_Init(&htim2) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  sClockSourceConfig.ClockSource = TIM_CLOCKSOURCE_INTERNAL;
+  if (HAL_TIM_ConfigClockSource(&htim2, &sClockSourceConfig) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  sMasterConfig.MasterOutputTrigger = TIM_TRGO_RESET;
+  sMasterConfig.MasterSlaveMode = TIM_MASTERSLAVEMODE_DISABLE;
+  if (HAL_TIMEx_MasterConfigSynchronization(&htim2, &sMasterConfig) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  /* USER CODE BEGIN TIM2_Init 2 */
+
+  /* USER CODE END TIM2_Init 2 */
+
+}
+
+/**
   * @brief TIM3 Initialization Function
   * @param None
   * @retval None
@@ -298,7 +383,7 @@ static void MX_TIM3_Init(void)
   htim3.Instance = TIM3;
   htim3.Init.Prescaler = 47999;
   htim3.Init.CounterMode = TIM_COUNTERMODE_UP;
-  htim3.Init.Period = 1;
+  htim3.Init.Period = 2;
   htim3.Init.ClockDivision = TIM_CLOCKDIVISION_DIV1;
   htim3.Init.AutoReloadPreload = TIM_AUTORELOAD_PRELOAD_DISABLE;
   if (HAL_TIM_Base_Init(&htim3) != HAL_OK)
