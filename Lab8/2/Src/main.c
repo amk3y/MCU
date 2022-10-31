@@ -80,55 +80,126 @@ enum KeyCode {
 	KEY_UNDEFINED
 };
 
-volatile int value = 9995;
-int64_t button_2_last_update = 0L;
-int64_t button_3_last_update = 0L;
-
-void HAL_GPIO_EXTI_Callback(uint16_t GPIO_Pin){
-	int64_t currentMills = HAL_GetTick();
-	if(GPIO_Pin == GPIO_PIN_2 && (currentMills - button_2_last_update) > 250){
-		value++;
-		button_2_last_update = HAL_GetTick();
-	}else if(GPIO_Pin == GPIO_PIN_3 && (currentMills - button_2_last_update) > 250){
-		value--;
-		button_3_last_update = HAL_GetTick();
-	}
-	
-	if(value > 9999) value = 0;
-	else if(value < 0) value = 9999;
-	
+int translateKeyCodeToLED(enum KeyCode code){
+	if((int) code < 10)
+		return Number[(int) code];
+	else if(code == KEY_A)
+		return 0xEE00;
+	else if(code == KEY_B)
+		return 0x3E00;
+	else if(code == KEY_C)
+        //0001 1010
+		return 0x1A00;
+	else if(code == KEY_D)
+			// 0111 1010
+		return 0x7A00;
+	else if(code == KEY_ASTERISK)
+		//1001 1110
+		return 0x9E00;
+	else if(code == KEY_HASH)
+		//1000 1110
+		return 0x8E00;
+	else 
+		return 0x9000;
 }
 
-	
-volatile int scanningIndex = 1;
+enum KeyCode scanKey(int row){
+	switch (row){
+		case 0: {
+			if(HAL_GPIO_ReadPin(GPIOC, GPIO_PIN_12) == 0) return KEY_1;
+			else if(HAL_GPIO_ReadPin(GPIOC, GPIO_PIN_13) == 0) return KEY_2;
+			else if(HAL_GPIO_ReadPin(GPIOC, GPIO_PIN_14) == 0) return KEY_3;
+			else if(HAL_GPIO_ReadPin(GPIOC, GPIO_PIN_15) == 0) return KEY_A;
+			else return KEY_UNDEFINED;
+		}
+		case 1: {
+			if(HAL_GPIO_ReadPin(GPIOC, GPIO_PIN_12) == 0) return KEY_4;
+			else if(HAL_GPIO_ReadPin(GPIOC, GPIO_PIN_13) == 0) return KEY_5;
+			else if(HAL_GPIO_ReadPin(GPIOC, GPIO_PIN_14) == 0) return KEY_6;
+			else if(HAL_GPIO_ReadPin(GPIOC, GPIO_PIN_15) == 0) return KEY_B;
+			else return KEY_UNDEFINED;
+		}
+		case 2: {
+			if(HAL_GPIO_ReadPin(GPIOC, GPIO_PIN_12) == 0) return KEY_7;
+			else if(HAL_GPIO_ReadPin(GPIOC, GPIO_PIN_13) == 0) return KEY_8;
+			else if(HAL_GPIO_ReadPin(GPIOC, GPIO_PIN_14) == 0) return KEY_9;
+			else if(HAL_GPIO_ReadPin(GPIOC, GPIO_PIN_15) == 0) return KEY_C;
+			else return KEY_UNDEFINED;
+		}
+		case 3: {
+			if(HAL_GPIO_ReadPin(GPIOC, GPIO_PIN_12) == 0) return KEY_ASTERISK;
+			else if(HAL_GPIO_ReadPin(GPIOC, GPIO_PIN_13) == 0) return KEY_0;
+			else if(HAL_GPIO_ReadPin(GPIOC, GPIO_PIN_14) == 0) return KEY_HASH;
+			else if(HAL_GPIO_ReadPin(GPIOC, GPIO_PIN_15) == 0) return KEY_D;
+			else return KEY_UNDEFINED;
+		}
+		default: {
+			return KEY_UNDEFINED;
+		}
+	}
+}
 
+
+
+volatile int value = 9995;
+enum KeyCode lastKeyOfRow[4] = {KEY_UNDEFINED};
+enum KeyCode currentKeyOfRow[4] = {KEY_UNDEFINED};
+int64_t keyLastUpdate = 0L; 
+
+	
+volatile int scanningIndex = 0;
+volatile int displayArray[4];
 
 void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim){
 	if(htim->Instance != TIM3) return;
 	
+	// Reset Scan Lines -> GPIOC 8 ~ 11  
+	HAL_GPIO_WritePin(GPIOC, 0x0F00, GPIO_PIN_SET);
+	// Reset LED Lines 
+	HAL_GPIO_WritePin(GPIOB, 0xFF00, GPIO_PIN_RESET);
 	
-		int displayArray[4] = {0};
-		displayArray[3] = value / 1000;
-		displayArray[2] = (value / 100) % 10;
-		displayArray[1] = (value / 10) % 10;
-		displayArray[0] = value % 10;
-		
-		// Reset Scan Lines -> GPIOC 8 ~ 11  
-		HAL_GPIO_WritePin(GPIOC, 0x0F00, GPIO_PIN_SET);
-		// Reset LED Lines 
-		HAL_GPIO_WritePin(GPIOB, 0xFF00, GPIO_PIN_RESET);
-		
-			// Set Current Scan Line (From PC8 to PC11)
-			// 0000 1111 0000 0000
-		HAL_GPIO_WritePin(GPIOC, 0x0100 << scanningIndex, GPIO_PIN_RESET);
+	// Set Current Scan Line (From PC8 to PC11)
+	// 0000 1111 0000 0000
+	HAL_GPIO_WritePin(GPIOC, 0x0100 << scanningIndex, GPIO_PIN_RESET);
+	enum KeyCode keycode = scanKey(scanningIndex);
+	if(keycode != KEY_UNDEFINED){
+		displayArray[0] = translateKeyCodeToLED(keycode);
+	}
+	
+	//Debounce 
+	if(keycode != lastKeyOfRow[scanningIndex]){
+			keyLastUpdate = HAL_GetTick();
+	}
+	
+	if((HAL_GetTick() - keyLastUpdate) > 40){
+				if(keycode != currentKeyOfRow[scanningIndex]){
+					currentKeyOfRow[scanningIndex] = keycode;
+					if(keycode != KEY_UNDEFINED){
+						// Button Action
+						 for (int i = 4; i > 0; i--) {
+							if(i == 4) continue;
+							else displayArray[i] = displayArray[i - 1];
+							}
+						// Button Action End
+					}
+				}
+			}
+	
+			lastKeyOfRow[scanningIndex] = keycode;
+			//Debounce End
+			
+			//
+			// Do Display
+			//
+			
+
 			//
 			// Do Display
 			//
 		HAL_GPIO_WritePin(GPIOB, 0xFF00, GPIO_PIN_RESET);
-		HAL_GPIO_WritePin(GPIOB, Number[displayArray[scanningIndex]], GPIO_PIN_SET);
+		HAL_GPIO_WritePin(GPIOB, displayArray[scanningIndex], GPIO_PIN_SET);
 		
-			
-		
+	
 		scanningIndex++;
 		if(scanningIndex >= 4) scanningIndex = 0;
 
@@ -179,7 +250,11 @@ int main(void)
 
   /* Infinite loop */
   /* USER CODE BEGIN WHILE */
+	
+
 	HAL_TIM_Base_Start_IT(&htim3);
+	
+	
   while (1)
   {
     /* USER CODE END WHILE */
