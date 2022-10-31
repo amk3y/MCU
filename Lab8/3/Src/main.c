@@ -152,13 +152,14 @@ volatile int selectedIndex = 3;
 volatile int scanningIndex = 0;
 
 int timerRunning = 0;
+int timerEnded = 0;
 
 void tick_timer_2(){
 	value--;
 	if(value <= 0){
 		value = 0;
 		timerRunning = 0;
-		HAL_GPIO_WritePin(GPIOB, 0x0002, GPIO_PIN_SET);
+		timerEnded = 1;
 		HAL_TIM_Base_Stop_IT(&htim2);
 	}
 }
@@ -176,8 +177,13 @@ void tick_timer_3(){
 	enum KeyCode keycode = scanKey(scanningIndex);
 	
 	
+	if(timerEnded){
+				HAL_GPIO_WritePin(GPIOB, 0x0004, GPIO_PIN_SET);
+	}else{
+				HAL_GPIO_WritePin(GPIOB, 0x0004, GPIO_PIN_RESET);
+	}
+	
 	if(!timerRunning){
-				HAL_GPIO_WritePin(GPIOB, 0x0002, GPIO_PIN_RESET);
 
 	//Debounce 
 	if(keycode != lastKeyOfRow[scanningIndex]){
@@ -189,6 +195,7 @@ void tick_timer_3(){
 					currentKeyOfRow[scanningIndex] = keycode;
 					if(keycode != KEY_UNDEFINED){
 						// Button Action
+						timerEnded = 0;
 						if(keycode == KEY_HASH){
 							selectedIndex--;
 							if(selectedIndex < 0) selectedIndex = 3;
